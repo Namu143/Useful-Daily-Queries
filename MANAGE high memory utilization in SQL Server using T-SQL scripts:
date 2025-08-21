@@ -1,0 +1,99 @@
+Memory usage by all the components of memory clerk:
+SELECT 
+    type AS Memory_Clerk_Type,
+    SUM(pages_kb) / 1024 AS Memory_Usage_MB
+FROM 
+    sys.dm_os_memory_clerks
+GROUP BY 
+    type
+ORDER BY 
+    Memory_Usage_MB DESC;
+
+-- Identify most resource-intensive queries
+SELECT TOP 10
+    qt.text AS 'SQL Text',
+    qs.total_worker_time,
+    qs.execution_count,
+    qs.total_worker_time / qs.execution_count AS avg_worker_time,
+    qs.total_logical_reads,
+    qs.total_logical_reads / qs.execution_count AS avg_logical_reads
+FROM sys.dm_exec_query_stats qs
+CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) qt
+ORDER BY qs.total_worker_time DESC;
+
+Buffer Pool Usage:
+SELECT 
+    DB_NAME(database_id) AS DatabaseName,
+    COUNT(*) * 8 / 1024 AS BufferPool_MB
+FROM 
+    sys.dm_os_buffer_descriptors
+GROUP BY 
+    database_id
+ORDER BY 
+    BufferPool_MB DESC;
+
+Total memory consumption details query:
+SELECT 
+    physical_memory_in_use_kb / 1024 AS Physical_Memory_Used_MB,
+    large_page_allocations_kb / 1024 AS Large_Page_Allocations_MB,
+    locked_page_allocations_kb / 1024 AS Locked_Page_Allocations_MB,
+    total_virtual_address_space_kb / 1024 AS Total_Virtual_Address_Space_MB,
+    virtual_address_space_reserved_kb / 1024 AS Virtual_Address_Space_Reserved_MB,
+    virtual_address_space_committed_kb / 1024 AS Virtual_Address_Space_Committed_MB,
+    virtual_address_space_available_kb / 1024 AS Virtual_Address_Space_Available_MB,
+    page_fault_count,
+    memory_utilization_percentage
+FROM 
+    sys.dm_os_process_memory;
+
+1. Check Current Memory Configuration:
+
+SELECT 
+  name, value, value_in_use
+FROM sys.configurations
+WHERE name IN ('min server memory (MB)', 'max server memory (MB)');
+ 
+2. Identify Memory-Intensive Queries :
+ 
+SELECT TOP 10 
+  total_worker_time/execution_count AS avg_cpu_time,
+  total_elapsed_time/execution_count AS avg_elapsed_time,
+  total_logical_reads/execution_count AS avg_logical_reads,
+  total_logical_writes/execution_count AS avg_logical_writes,
+  execution_count,
+  statement_text
+FROM sys.dm_exec_query_stats 
+CROSS APPLY sys.dm_exec_sql_text(sql_handle)
+ORDER BY avg_logical_reads DESC;
+
+
+3. Monitor Memory-Related Performance Counters :
+
+SELECT 
+  object_name,
+  counter_name,
+  cntr_value
+FROM sys.dm_os_performance_counters
+WHERE counter_name IN ('Memory Grants Pending', 'Target Server Memory (KB)', 'Total Server Memory (KB)', 'Page Life Expectancy');
+--or you may use 
+WHERE object_name LIKE '%Memory%';
+ 
+4. Optimize Memory-Intensive Queries :
+  - Add appropriate indexes to tables involved in memory-intensive queries.
+  - Rewrite complex queries to improve efficiency.
+  - Update statistics for tables involved in queries.
+-UPDATE STATISTICS TableName;
+
+5. Set Max Server Memory :
+   
+  -- Set max server memory to 560 GB (for example)
+  EXEC sp_configure 'max server memory', 16384; -- in MB
+  RECONFIGURE;
+   
+6. Check Memory-Optimized Tables :
+   
+  SELECT 
+    object_name,
+    memory_allocated_for_table_kb AS 'Memory Allocated (KB)',
+    memory_used_by_table_kb AS 'Memory Used (KB)'
+  FROM sys.dm_db_xtp_table_memory_stats;
