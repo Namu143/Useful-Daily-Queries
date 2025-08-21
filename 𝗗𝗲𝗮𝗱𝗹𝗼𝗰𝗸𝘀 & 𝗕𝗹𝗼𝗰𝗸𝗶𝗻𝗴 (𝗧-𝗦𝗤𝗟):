@@ -1,0 +1,8 @@
+Pinpoints blocking chains and helps troubleshoot deadlocks faster.
+SELECT 
+ blocking_session_id, 
+ wait_type, 
+ wait_time, 
+ resource_description
+FROM sys.dm_exec_requests
+WHERE blocking_session_id <> 0;
