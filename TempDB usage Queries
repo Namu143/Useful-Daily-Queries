@@ -1,0 +1,84 @@
+
+Temp DB Usage Query:
+use [tempdb]
+GO
+select getdate() AS runtime, SUM(user_object_reserved_page_count)*8 as usr_obj_kb,
+SUM(internal_object_reserved_page_count)*8 as internal_obj_kb,
+SUM(version_store_reserved_page_count)*8 as version_store_kb,
+SUM(unallocated_extent_page_count)*8 as freespace_kb,
+SUM(mixed_extent_page_count)*8 as mixedextent_kb
+FROM sys.dm_db_file_space_usage
+Navatha kattela
+
+use [tempdb]
+GO
+Select name AS [Logical Name], size/128.0 AS [Total Size in MB],
+size/128.0 - CAST(FILEPROPERTY(name, 'spaceused') AS int)/128.0 AS [Available space in MB] from sys.database_files
+
+Query to find which transaction utilizing version store space:
+ 
+SELECT GETDATE() AS runtime
+              ,a.*
+              ,b.kpid
+              ,b.blocked
+              ,b.lastwaittype
+              ,b.waitresource
+              ,db_name(b.dbid) AS database_name
+              ,b.cpu
+              ,b.physical_io
+              ,b.memusage
+              ,b.login_time
+              ,b.last_batch
+              ,b.open_tran
+              ,b.STATUS
+              ,b.hostname
+              ,b.program_name
+              ,b.cmd
+              ,b.loginame
+              ,request_id
+FROM sys.dm_tran_active_snapshot_database_transactions a
+INNER JOIN sys.sysprocesses b ON a.session_id = b.spid
+
+--monitoring active sessions.
+
+SELECT 
+ s.session_id,
+ s.login_name,
+ s.host_name,
+ s.status,
+ r.status AS request_status,
+ r.command,
+ r.cpu_time,
+ r.logical_reads,
+ r.wait_type,
+ r.wait_time,
+ r.blocking_session_id,
+ r.start_time,
+ r.text_size
+FROM 
+ sys.dm_exec_sessions s
+LEFT JOIN 
+ sys.dm_exec_requests r ON s.session_id = r.session_id
+OUTER APPLY 
+ sys.dm_exec_sql_text(r.sql_handle) AS r_sql
+WHERE 
+ s.is_user_process = 1;
+
+DMV provides information about transactions and includes details about the transaction, user session, application and the query that initiated it.(Active transaction)
+
+SELECT
+    trans.session_id AS [SESSION ID],	
+    ESes.host_name AS [HOST NAME],
+    login_name AS [Login NAME],
+    trans.transaction_id AS [TRANSACTION ID],
+    tas.name AS [TRANSACTION NAME],
+    tas.transaction_begin_time AS [TRANSACTION BEGIN TIME],
+    tds.database_id AS [DATABASE ID],
+    DBs.name AS [DATABASE NAME]
+FROM sys.dm_tran_active_transactions tas
+JOIN sys.dm_tran_session_transactions trans ON (trans.transaction_id = tas.transaction_id)
+LEFT OUTER JOIN sys.dm_tran_database_transactions tds ON (tas.transaction_id = tds.transaction_id)
+LEFT OUTER JOIN sys.databases AS DBs ON tds.database_id = DBs.database_id
+LEFT OUTER JOIN sys.dm_exec_sessions AS ESes ON trans.session_id = ESes.session_id
+WHERE ESes.session_id IS NOT NULL;
+
